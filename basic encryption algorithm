@@ -1,0 +1,164 @@
+def pad_string_1600_bits(input_string):  
+    binary_rep= ''.join(format(ord(char), '08b') for char in input_string)  
+   
+    
+    num = len(binary_rep)
+    binary_rep+='1'
+    padded_string_len = 1600-num-2
+    for i in range(padded_string_len):
+        binary_rep+='0'
+    return binary_rep +'1'
+#return the state matrix.   
+def state(string):  
+    # Create a 5x5 matrix state from padded string
+    matrix = []
+    bstring = pad_string_1600_bits(string)
+    for i in range(5):  
+        row = [0] * 5  # Create a row with 5 zeros  
+        matrix.append(row)  
+    start_index = 0  
+    for i in range(5):  
+        for j in range(5):  
+            bit_string = ''  
+            for k in range(64):  
+                bit_string += bstring[start_index]  
+                start_index += 1  
+            matrix[i][j] = bit_string
+    return matrix
+#create a matrix with extraction feature C for each column and return it.
+def ColParity(arr):  
+    C = [0] * 5  
+    for i in range(5):  
+        # Convert binary strings to integers during XOR operation  
+        num = bin(int(arr[0][i],2) ^ int(arr[1][i],2) ^int(arr[2][i],2) ^ int(arr[3][i],2) ^ int(arr[4][i],2))
+        C[i] = str(num[2:])
+    return C  
+
+def swap(a, b):  
+    return b, a  
+
+def TransformCol(A, col, c):  
+    for i in range(5):  
+        num = bin((int(A[i][col],2)) ^ int(c,2))
+        A[i][col] = str(num[2:])
+        
+
+def prophase(A, col1, col2):  
+    for i in range(5):  
+        if A[i][col1] != A[i][col2]:  
+            A[i][col1], A[i][col2] = swap(A[i][col1], A[i][col2])  
+
+def MatrixTransform(A):  
+    start_col = 0  
+    end_col = 2  
+    C = ColParity(A)  
+    for rounds in range(100):  
+        c_start = C[start_col]  
+        c_end = C[end_col]  
+        prophase(A, start_col, end_col)  
+        TransformCol(A, start_col, c_start)  
+        TransformCol(A, end_col, c_start)  
+        
+        # Update column indices  
+        end_col = (end_col + 1) % 5  
+        start_col = (start_col + 1) % 5 
+
+def diffusion(A):
+    for rounds in range(100):
+        for i in range(5):  
+            for j in range(5):  
+            # Convert current value to an integer for bitwise operations  
+                current_value = int(A[i][j], 2)  
+                if j == 0:  
+                    next_value = int(A[i][j + 1], 2)  # Element to the right  
+                    prev_value = int(A[i][4], 2)  # Last element in the row  
+                    num = bin(current_value ^ ((~prev_value) & next_value))  # Store as 64-bit binary
+                    A[i][j] = str(num[2:])
+                elif j == 4:  
+                    prev_value = int(A[i][j - 1], 2)  # Element to the left  
+                    first_value = int(A[i][0], 2)  # First element in the row  
+                    num= bin(current_value ^ ((~prev_value) & first_value))
+                    A[i][j] = str(num[2:])
+                else:  
+                    prev_value = int(A[i][j - 1], 2)  # Element to the left  
+                    next_value = int(A[i][j + 1], 2)  # Element to the right  
+                    num = bin(current_value ^ ((~prev_value) & next_value))
+                    A[i][j] = str(num[2:])
+                
+
+        
+    
+def nt(A):  
+    for i in range(5):  
+        for j in range(5):  
+            num = ((2 * i) + (3 * j)) % 5  
+            A[i][num], A[i][j] = swap(A[i][num], A[i][j])
+
+
+                
+def bitrotate(A):
+    for rounds in range(10):
+        for i in range(5):
+            for j in range(5):
+                if i%2==0 and j%2==0:
+                    num = bin(int(A[i][j],2)<<2)
+                    A[i][j] = str(num[2:])
+                elif i%2==0:
+                    num = bin(int(A[i][j],2)>>1)
+                    A[i][j] = str(num[2:])
+                else:
+                    num = bin(int(A[i][j],2)<<3)
+                    A[i][j] = str(num[2:])
+
+
+                    
+def process(string):
+    bstring = pad_string_1600_bits(string)
+    matrix = state(bstring)
+    MatrixTransform(matrix)
+    bitrotate(matrix)
+    diffusion(matrix)
+    nt(matrix)
+    
+    return matrix
+
+def hash(string):
+    for rounds in range(10):
+        A = process(string)
+    
+    binary_string = ''  
+    for i in range(5):  
+        for j in range(5):  
+            binary_string += A[i][j]  
+            
+    # Reduce the binary string to an appropriate size  
+    # Here we take the last 256 bits (for example), but you can adjust as needed  
+    required_length = 256  
+    if len(binary_string) > required_length:  
+        binary_string = binary_string[-required_length:]  
+    
+    n = int(binary_string, 2)  # Convert binary string to integer  
+    byte_length = (len(binary_string) + 7) // 8  # Determine required byte length  
+    binary_hash = n.to_bytes(byte_length, 'big')  # Convert to bytes  
+    hex_hash = binary_hash.hex()  # Convert bytes to hexadecimal  
+    return hex_hash 
+
+
+
+
+import os
+random_bytes = os.urandom(16)
+salt_hash = hash(str(random_bytes))
+salt = salt_hash[:16]
+username = input("enter username")
+passwd  = input("enter passwd for signup")
+login = input("enter passwd for login")
+passwd_new = salt+passwd
+login_new = salt+login
+passwd_hash = hash(passwd_new)
+login_hash = hash(login_new)
+if passwd_hash==login_hash:
+    print("login successful!")
+else:
+    print("login failed!")
+print(passwd_hash)
